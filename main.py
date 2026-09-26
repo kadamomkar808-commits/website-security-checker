@@ -16,11 +16,11 @@ from email import encoders
 app = FastAPI()
 
 # --- CONFIGURATION (Tumcha email ithe taka) ---
-OWNER_EMAIL = "your-email@gmail.com"
+OWNER_EMAIL = "kadamomkar808@gmail.com"
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
-SENDER_EMAIL = "your-email@gmail.com"
-SENDER_PASSWORD = "your-app-password" # Gmail App Password
+SENDER_EMAIL = "kadamomkar808@gmail.com"
+SENDER_PASSWORD = "web2810" # Gmail App Password
 
 # --- DATABASE SETUP ---
 def init_db():
