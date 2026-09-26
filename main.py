@@ -37,7 +37,7 @@ def home():
             <h2>🛡️ Website Security Checker</h2>
             <p>Enter any domain to check basic security posture</p>
             <input type="text" id="domainInput" placeholder="e.g. google.com" />
-            <button onclick="checkSecurity()">Check Security</button>
+            <button id="scanBtn" onclick="checkSecurity()">Check Security</button>
 
             <div id="results">
                 <div class="score-box">
@@ -50,29 +50,30 @@ def home():
 
         <script>
             async function checkSecurity() {
-                const domain = document.getElementById('domainInput').value.trim();
-                if(!domain) return alert('Please enter a domain');
+                const domainInput = document.getElementById('domainInput');
+                const domain = domainInput.value.trim();
+                if(!domain) { alert('Please enter a domain'); return; }
                 
-                const btn = document.querySelector('button');
+                const btn = document.getElementById('scanBtn');
                 btn.innerText = 'Scanning...';
                 
                 try {
-                    const res = await fetch('/scan?domain=' + domain);
+                    const res = await fetch('/scan?domain=' + encodeURIComponent(domain));
                     const data = await res.json();
                     
                     document.getElementById('results').style.display = 'block';
                     document.getElementById('score').innerText = data.overall_score + '/100';
                     
                     let detailsHtml = '';
-                    detailsHtml += <div class="item"><span>SSL Status</span> <span class="${data.ssl_check.status === 'PASS' ? 'pass':'fail'}">${data.ssl_check.status} (${data.ssl_check.days_remaining} days)</span></div>;
+                    detailsHtml += '<div class="item"><span>SSL Status</span> <span class="' + (data.ssl_check.status === 'PASS' ? 'pass':'fail') + '">' + data.ssl_check.status + ' (' + data.ssl_check.days_remaining + ' days)</span></div>';
                     
                     for (const [header, val] of Object.entries(data.headers_check)) {
-                        detailsHtml += <div class="item"><span>${header}</span> <span class="${val === 'Present' ? 'pass':'fail'}">${val}</span></div>;
+                        detailsHtml += '<div class="item"><span>' + header + '</span> <span class="' + (val === 'Present' ? 'pass':'fail') + '">' + val + '</span></div>';
                     }
                     
                     document.getElementById('details').innerHTML = detailsHtml;
                 } catch(e) {
-                    alert('Error checking domain');
+                    alert('Error checking domain: ' + e);
                 } finally {
                     btn.innerText = 'Check Security';
                 }
@@ -99,8 +100,8 @@ def scan_website(domain: str):
                 ssl_days = (expire_date - datetime.utcnow()).days
                 ssl_status = "PASS"
                 score += 50
-    except Exception as e:
-        ssl_status = f"FAIL"
+    except Exception:
+        ssl_status = "FAIL"
 
     target_url = f"https://{domain}"
     important_headers = [
