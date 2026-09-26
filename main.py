@@ -52,7 +52,7 @@ def home():
                 <div id="details"></div>
                 
                 <div class="pro-banner">
-                    <div class="pro-title">🚀 Upgrade to PRO Plan ($29/mo)</div>
+                    <div class="pro-title">🚀 Upgrade to PRO Plan ($5/mo)</div>
                     <div style="font-size: 12px; color: #cbd5e1;">Get 24/7 Automated Monitoring, Vulnerability Alerts & Full PDF Reports.</div>
                     <button class="pro-btn" onclick="alert('Subscription Payment Gateway coming soon!')">Upgrade Now</button>
                 </div>
@@ -126,7 +126,6 @@ def scan_website(domain: str):
         req = urllib.request.Request(target_url, headers={'User-Agent': 'Mozilla/5.0'})
         response = urllib.request.urlopen(req, timeout=5)
         headers = response.info()
-
         for header in important_headers:
             if header in headers:
                 headers_result[header] = "Present"
@@ -146,3 +145,4 @@ def scan_website(domain: str):
         },
         "headers_check": headers_result
     }
+    
