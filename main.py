@@ -7,56 +7,80 @@ import urllib.request
 
 app = FastAPI()
 
-# HTML Frontend Interface
-html_content = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Website Security Checker</title>
-    <style>
-        body { font-family: Arial, sans-serif; background-color: #0f172a; color: white; text-align: center; padding: 50px; }
-        .card { background: #1e293b; padding: 30px; border-radius: 12px; max-width: 500px; margin: auto; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
-        input { width: 80%; padding: 12px; margin-bottom: 15px; border-radius: 6px; border: none; font-size: 16px; }
-        button { background-color: #2563eb; color: white; border: none; padding: 12px 24px; border-radius: 6px; font-size: 16px; cursor: pointer; }
-        button:hover { background-color: #1d4ed8; }
-        #result { margin-top: 25px; text-align: left; background: #0f172a; padding: 15px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; display: none; }
-    </style>
-</head>
-<body>
-    <div class="card">
-        <h2>🛡️ Website Security Checker</h2>
-        <p>Enter any domain to check basic security posture</p>
-        <input type="text" id="domainInput" placeholder="e.g. google.com">
-        <br>
-        <button onclick="scanWebsite()">Check Security</button>
-        <div id="result">Scanning...</div>
-    </div>
-
-    <script>
-        async function scanWebsite() {
-            const domain = document.getElementById('domainInput').value;
-            const resultDiv = document.getElementById('result');
-            if(!domain) { alert('Please enter a domain!'); return; }
-            
-            resultDiv.style.display = 'block';
-            resultDiv.innerText = 'Scanning website... Please wait...';
-
-            try {
-                const response = await fetch('/scan?domain=' + domain);
-                const data = await response.json();
-                resultDiv.innerText = JSON.stringify(data, null, 2);
-            } catch (error) {
-                resultDiv.innerText = 'Error fetching security data.';
-            }
-        }
-    </script>
-</body>
-</html>
-"""
-
 @app.get("/", response_class=HTMLResponse)
 def home():
-    return html_content
+    return """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Website Security Checker</title>
+        <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+            .card { background: #1e293b; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 100%; max-width: 500px; text-align: center; }
+            h2 { color: #38bdf8; margin-bottom: 8px; }
+            p { color: #94a3b8; font-size: 14px; margin-bottom: 20px; }
+            input { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: #fff; box-sizing: border-box; margin-bottom: 12px; font-size: 15px; }
+            button { width: 100%; padding: 12px; border-radius: 6px; border: none; background: #0284c7; color: white; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.2s; }
+            button:hover { background: #0369a1; }
+            #results { margin-top: 25px; text-align: left; display: none; }
+            .score-box { background: #0f172a; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 15px; border: 1px solid #334155; }
+            .score-num { font-size: 32px; font-weight: bold; color: #4ade80; }
+            .item { background: #334155; padding: 10px 15px; border-radius: 6px; margin-bottom: 8px; font-size: 14px; display: flex; justify-content: space-between; }
+            .pass { color: #4ade80; font-weight: bold; }
+            .fail { color: #f87171; font-weight: bold; }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h2>🛡️ Website Security Checker</h2>
+            <p>Enter any domain to check basic security posture</p>
+            <input type="text" id="domainInput" placeholder="e.g. google.com" />
+            <button onclick="checkSecurity()">Check Security</button>
+
+            <div id="results">
+                <div class="score-box">
+                    <div>Overall Security Score</div>
+                    <div class="score-num" id="score">0/100</div>
+                </div>
+                <div id="details"></div>
+            </div>
+        </div>
+
+        <script>
+            async function checkSecurity() {
+                const domain = document.getElementById('domainInput').value.trim();
+                if(!domain) return alert('Please enter a domain');
+                
+                const btn = document.querySelector('button');
+                btn.innerText = 'Scanning...';
+                
+                try {
+                    const res = await fetch('/scan?domain=' + domain);
+                    const data = await res.json();
+                    
+                    document.getElementById('results').style.display = 'block';
+                    document.getElementById('score').innerText = data.overall_score + '/100';
+                    
+                    let detailsHtml = '';
+                    detailsHtml += <div class="item"><span>SSL Status</span> <span class="${data.ssl_check.status === 'PASS' ? 'pass':'fail'}">${data.ssl_check.status} (${data.ssl_check.days_remaining} days)</span></div>;
+                    
+                    for (const [header, val] of Object.entries(data.headers_check)) {
+                        detailsHtml += <div class="item"><span>${header}</span> <span class="${val === 'Present' ? 'pass':'fail'}">${val}</span></div>;
+                    }
+                    
+                    document.getElementById('details').innerHTML = detailsHtml;
+                } catch(e) {
+                    alert('Error checking domain');
+                } finally {
+                    btn.innerText = 'Check Security';
+                }
+            }
+        </script>
+    </body>
+    </html>
+    """
 
 @app.get("/scan")
 def scan_website(domain: str):
@@ -65,7 +89,6 @@ def scan_website(domain: str):
     ssl_days = 0
     headers_result = {}
 
-    # SSL Check
     context = ssl.create_default_context()
     try:
         with socket.create_connection((domain, 443), timeout=5) as sock:
@@ -77,11 +100,14 @@ def scan_website(domain: str):
                 ssl_status = "PASS"
                 score += 50
     except Exception as e:
-        ssl_status = f"FAIL ({str(e)})"
+        ssl_status = f"FAIL"
 
-    # Headers Check
     target_url = f"https://{domain}"
-    important_headers = ["Strict-Transport-Security", "X-Frame-Options", "X-Content-Type-Options"]
+    important_headers = [
+        "Strict-Transport-Security",
+        "X-Frame-Options",
+        "X-Content-Type-Options"
+    ]
     points_per_header = 50 / len(important_headers)
 
     try:
@@ -95,12 +121,16 @@ def scan_website(domain: str):
                 score += points_per_header
             else:
                 headers_result[header] = "Missing"
-    except Exception as e:
-        headers_result["error"] = str(e)
+    except Exception:
+        for header in important_headers:
+            headers_result[header] = "Missing"
 
     return {
         "domain": domain,
         "overall_score": round(score),
-        "ssl_check": {"status": ssl_status, "days_remaining": ssl_days},
+        "ssl_check": {
+            "status": ssl_status,
+            "days_remaining": ssl_days
+        },
         "headers_check": headers_result
     }
