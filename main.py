@@ -15,7 +15,7 @@ def home():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Website Security Checker</title>
+        <title>Website Security Checker - SaaS</title>
         <style>
             body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
             .card { background: #1e293b; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 100%; max-width: 500px; text-align: center; }
@@ -30,12 +30,17 @@ def home():
             .item { background: #334155; padding: 10px 15px; border-radius: 6px; margin-bottom: 8px; font-size: 14px; display: flex; justify-content: space-between; }
             .pass { color: #4ade80; font-weight: bold; }
             .fail { color: #f87171; font-weight: bold; }
+            
+            /* Pro Banner */
+            .pro-banner { margin-top: 25px; padding: 15px; border: 1px dashed #eab308; background: rgba(234, 179, 8, 0.1); border-radius: 8px; text-align: center; }
+            .pro-title { color: #eab308; font-weight: bold; margin-bottom: 5px; }
+            .pro-btn { background: #eab308; color: #000; font-size: 14px; padding: 8px 15px; margin-top: 10px; border-radius: 4px; font-weight: bold; }
         </style>
     </head>
     <body>
         <div class="card">
             <h2>🛡️ Website Security Checker</h2>
-            <p>Enter any domain to check basic security posture</p>
+            <p>Free Basic Security Scanner</p>
             <input type="text" id="domainInput" placeholder="e.g. google.com" />
             <button id="scanBtn" onclick="checkSecurity()">Check Security</button>
 
@@ -45,6 +50,12 @@ def home():
                     <div class="score-num" id="score">0/100</div>
                 </div>
                 <div id="details"></div>
+                
+                <div class="pro-banner">
+                    <div class="pro-title">🚀 Upgrade to PRO Plan ($29/mo)</div>
+                    <div style="font-size: 12px; color: #cbd5e1;">Get 24/7 Automated Monitoring, Vulnerability Alerts & Full PDF Reports.</div>
+                    <button class="pro-btn" onclick="alert('Subscription Payment Gateway coming soon!')">Upgrade Now</button>
+                </div>
             </div>
         </div>
 
