@@ -41,7 +41,7 @@ def home():
             /* Pro Banner */
             .pro-banner { margin-top: 25px; padding: 15px; border: 1px dashed #eab308; background: rgba(234, 179, 8, 0.1); border-radius: 8px; text-align: center; }
             .pro-title { color: #eab308; font-weight: bold; margin-bottom: 5px; }
-            .pro-btn { background: #eab308; color: #000; font-size: 14px; padding: 8px 15px; margin-top: 10px; border-radius: 4px; font-weight: bold; border: none; cursor: pointer; }
+            .pro-btn { background: #eab308; color: #000; font-size: 14px; padding: 8px 15px; margin-top: 10px; border-radius: 4px; font-weight: bold; border: none; cursor: pointer; width: 100%; }
         </style>
     </head>
     <body>
@@ -68,7 +68,9 @@ def home():
                 <div class="pro-banner">
                     <div class="pro-title">🚀 Upgrade to PRO Plan ($5/mo)</div>
                     <div style="font-size: 12px; color: #cbd5e1;">Get 24/7 Automated Monitoring & Vulnerability Email Alerts.</div>
-                    <button class="pro-btn" onclick="alert('Subscription Payment Gateway coming soon!')">Upgrade Now</button>
+                    <a href="https://buy.stripe.com/test_link" target="_blank" style="text-decoration: none;">
+                        <button class="pro-btn">Upgrade Now ($5/mo)</button>
+                    </a>
                 </div>
             </div>
         </div>
