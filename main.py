@@ -10,7 +10,6 @@ import urllib.request
 
 app = FastAPI()
 
-# --- SECRET ADMIN KEY ---
 ADMIN_SECRET_KEY = "omkar2812010"
 
 # --- DATABASE SETUP ---
@@ -41,7 +40,6 @@ def init_db():
 
 init_db()
 
-# --- HELPER: GENERATE CSV DATA ---
 def generate_clients_csv():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
@@ -69,7 +67,6 @@ def generate_clients_csv():
         writer.writerow(row)
     return output.getvalue()
 
-# --- SECURE ADMIN ENDPOINTS ---
 @app.get("/admin/export-csv")
 def export_clients_csv(key: str = ""):
     if key != ADMIN_SECRET_KEY:
@@ -86,7 +83,7 @@ def export_clients_csv(key: str = ""):
 @app.get("/admin/view-data")
 def view_data(key: str = ""):
     if key != ADMIN_SECRET_KEY:
-        return {"error": "Unauthorized Access! Invalid Admin Password."}
+        return {"error": "पाहणी नाकारली! पासवर्ड चुकीचा आहे."}
     
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
@@ -104,7 +101,6 @@ def view_data(key: str = ""):
         "scans_history": scans
     }
 
-# --- FRONTEND INTERFACE ---
 @app.get("/", response_class=HTMLResponse)
 def home():
     return """
@@ -118,96 +114,71 @@ def home():
             body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
             .navbar { width: 100%; max-width: 650px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
             .logo { font-size: 20px; font-weight: bold; color: #38bdf8; }
-            .auth-btns button { background: #334155; color: white; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; margin-left: 6px; font-weight: bold; }
-            .auth-btns button.primary { background: #0284c7; }
-            .auth-btns button.owner-btn { background: #e11d48; color: white; }
-            .card { background: #1e293b; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 100%; max-width: 650px; text-align: center; box-sizing: border-box; }
-            h2 { color: #38bdf8; margin-bottom: 8px; }
-            p { color: #94a3b8; font-size: 14px; margin-bottom: 20px; }
+            .card { background: #1e293b; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 100%; max-width: 650px; box-sizing: border-box; }
+            h2 { color: #38bdf8; margin-bottom: 8px; text-align: center; }
+            p.sub { color: #94a3b8; font-size: 14px; margin-bottom: 20px; text-align: center; }
             input { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: #fff; box-sizing: border-box; margin-bottom: 12px; font-size: 15px; }
-            button.scan-btn { width: 100%; padding: 12px; border-radius: 6px; border: none; background: #0284c7; color: white; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.2s; }
-            button.scan-btn:hover { background: #0369a1; }
-            #results, #ownerSection, #ownerDashboard { margin-top: 25px; text-align: left; display: none; }
+            button { width: 100%; padding: 12px; border-radius: 6px; border: none; background: #0284c7; color: white; font-weight: bold; font-size: 16px; cursor: pointer; }
+            #results { margin-top: 25px; text-align: left; display: none; }
             .score-box { background: #0f172a; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 15px; border: 1px solid #334155; }
             .score-num { font-size: 32px; font-weight: bold; color: #4ade80; }
             .item { background: #334155; padding: 10px 15px; border-radius: 6px; margin-bottom: 8px; font-size: 14px; display: flex; justify-content: space-between; }
             .pass { color: #4ade80; font-weight: bold; }
             .fail { color: #f87171; font-weight: bold; }
-            .pro-banner { background: linear-gradient(135deg, #1e1b4b, #312e81); border: 1px solid #6366f1; padding: 20px; border-radius: 8px; margin-top: 20px; text-align: center; }
-            .pro-banner h3 { margin: 0 0 8px 0; color: #a5b4fc; }
-            .pro-banner p { color: #c7d2fe; font-size: 13px; margin-bottom: 15px; }
-            .pro-banner button { background: #6366f1; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+            
+            /* OWNER SECTION STYLES */
+            .owner-card { background: #0f172a; border: 1px solid #e11d48; padding: 20px; border-radius: 8px; margin-top: 30px; }
+            .owner-title { color: #f43f5e; font-weight: bold; font-size: 16px; margin-bottom: 10px; text-align: center; }
             table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
             th, td { border: 1px solid #334155; padding: 8px; text-align: left; word-break: break-all; }
-            th { background: #0f172a; color: #38bdf8; }
+            th { background: #1e293b; color: #38bdf8; }
         </style>
     </head>
     <body>
         <div class="navbar">
             <div class="logo">🛡️ SecurityChecker</div>
-            <div class="auth-btns">
-                <button onclick="alert('Login feature coming soon!')">Login</button>
-                <button class="primary" onclick="alert('Register feature coming soon!')">Register</button>
-                <button class="owner-btn" onclick="toggleOwnerSection()">👑 Owner</button>
-            </div>
         </div>
 
         <div class="card">
             <h2>Website Security Checker</h2>
-            <p>Enter any domain to check basic security posture</p>
+            <p class="sub">Enter any domain to check basic security posture</p>
             <input type="text" id="domainInput" placeholder="e.g. google.com" />
-            <button class="scan-btn" id="scanBtn" onclick="checkSecurity()">Check Security</button>
+            <button id="scanBtn" onclick="checkSecurity()">Check Security</button>
 
-            <!-- SCAN RESULTS CONTAINER -->
+            <!-- SCAN RESULTS -->
             <div id="results">
                 <div class="score-box">
                     <div>Overall Security Score</div>
                     <div class="score-num" id="score">0/100</div>
                 </div>
                 <div id="details"></div>
+            </div>
 
-                <div class="pro-banner">
-                    <h3>🚀 Upgrade to PRO Plan ($5/mo)</h3>
-                    <p>Get 24/7 Automated Monitoring, Vulnerability Alerts & Full PDF Reports.</p>
-                    <button onclick="window.open('https://buy.stripe.com/test_link', '_blank')">Upgrade Now</button>
+            <!-- PERMANENT OWNER LOGIN & DASHBOARD -->
+            <div class="owner-card">
+                <div class="owner-title">👑 Owner Admin Login</div>
+                <div id="loginForm">
+                    <input type="password" id="ownerPassInput" placeholder="Enter Owner Password (omkar2812010)" />
+                    <button onclick="loginOwner()" style="background: #e11d48;">Login to Access Client Data</button>
                 </div>
-            </div>
 
-            <!-- OWNER LOGIN FORM -->
-            <div id="ownerSection">
-                <hr style="border:0; border-top:1px solid #334155; margin:20px 0;">
-                <h3 style="color:#e11d48; margin-bottom:10px;">👑 Owner Admin Access</h3>
-                <input type="password" id="ownerPassInput" placeholder="Enter Owner Password" />
-                <button onclick="loginOwner()" style="width:100%; padding:10px; background:#e11d48; color:white; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">Login as Owner</button>
-            </div>
+                <div id="ownerDashboard" style="display: none;">
+                    <div style="color:#4ade80; font-weight:bold; margin-bottom:10px;">✅ Owner Access Granted!</div>
+                    <button onclick="downloadCSV()" style="background:#10b981; margin-bottom:15px;">📥 Download Client CSV Backup</button>
+                    
+                    <div style="color:#38bdf8; font-weight:bold; margin-top:10px;">Registered Users:</div>
+                    <div id="usersTable">Loading...</div>
 
-            <!-- OWNER DASHBOARD CONTAINER -->
-            <div id="ownerDashboard">
-                <hr style="border:0; border-top:1px solid #334155; margin:20px 0;">
-                <h3 style="color:#4ade80;">👑 Owner Dashboard Data</h3>
-                <button onclick="downloadCSV()" style="background:#10b981; color:white; border:none; padding:8px 12px; border-radius:5px; cursor:pointer; font-weight:bold; margin-bottom:15px;">📥 Download CSV Backup</button>
-                
-                <h4 style="margin-bottom:5px; color:#38bdf8;">Registered Users:</h4>
-                <div id="usersTable">Loading...</div>
-
-                <h4 style="margin-top:15px; margin-bottom:5px; color:#38bdf8;">Scan History:</h4>
-                <div id="scansTable">Loading...</div>
+                    <div style="color:#38bdf8; font-weight:bold; margin-top:15px;">Scan History:</div>
+                    <div id="scansTable">Loading...</div>
+                </div>
             </div>
         </div>
 
         <script>
             let currentOwnerKey = "";
 
-            function toggleOwnerSection() {
-                const sec = document.getElementById('ownerSection');
-                sec.style.display = (sec.style.display === 'block') ? 'none' : 'block';
-                document.getElementById('ownerDashboard').style.display = 'none';
-            }
-
             async function checkSecurity() {
-                document.getElementById('ownerSection').style.display = 'none';
-                document.getElementById('ownerDashboard').style.display = 'none';
-                
                 const domainInput = document.getElementById('domainInput');
                 const domain = domainInput.value.trim();
                 if(!domain) { alert('Please enter a domain'); return; }
@@ -239,7 +210,7 @@ def home():
 
             async function loginOwner() {
                 const password = document.getElementById('ownerPassInput').value.trim();
-                if(!password) { alert('Please enter password'); return; }
+                if(!password) { alert('पासवर्ड टाका!'); return; }
 
                 const res = await fetch('/admin/view-data?key=' + encodeURIComponent(password));
                 const data = await res.json();
@@ -250,12 +221,12 @@ def home():
                 }
 
                 currentOwnerKey = password;
-                document.getElementById('ownerSection').style.display = 'none';
+                document.getElementById('loginForm').style.display = 'none';
                 document.getElementById('ownerDashboard').style.display = 'block';
 
-                // Render Users Table
+                // Users Table
                 if(data.users.length === 0) {
-                    document.getElementById('usersTable').innerHTML = "<p style='color:#94a3b8;'>No users registered yet.</p>";
+                    document.getElementById('usersTable').innerHTML = "<p style='color:#94a3b8; font-size:12px;'>No users registered yet.</p>";
                 } else {
                     let uHtml = "<table><tr><th>ID</th><th>Email</th><th>Plan</th><th>Date</th></tr>";
                     data.users.forEach(u => {
@@ -265,9 +236,9 @@ def home():
                     document.getElementById('usersTable').innerHTML = uHtml;
                 }
 
-                // Render Scans History Table
+                // Scans Table
                 if(data.scans_history.length === 0) {
-                    document.getElementById('scansTable').innerHTML = "<p style='color:#94a3b8;'>No scans recorded yet.</p>";
+                    document.getElementById('scansTable').innerHTML = "<p style='color:#94a3b8; font-size:12px;'>No scans recorded yet.</p>";
                 } else {
                     let sHtml = "<table><tr><th>ID</th><th>User ID</th><th>Domain</th><th>Score</th><th>Status</th></tr>";
                     data.scans_history.forEach(s => {
@@ -288,7 +259,6 @@ def home():
     </html>
     """
 
-# --- SCANNER ENDPOINT ---
 @app.get("/scan")
 def scan_website(domain: str):
     score = 0
