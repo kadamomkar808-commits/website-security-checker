@@ -15,15 +15,15 @@ from email import encoders
 
 app = FastAPI()
 
-# --- CONFIGURATION ---
-OWNER_EMAIL = "ok1879553@gmail.com"       # <-- Tumcha Gmail ID
-SENDER_EMAIL = "ok1879553@gmail.com"      # <-- Tumcha Gmail ID
-SENDER_PASSWORD = "web2812010" # <-- Gmail App Password (In-built email sathi)
+# --- CONFIGURATION (तुमची माहिती इथे अपडेट केली आहे) ---
+OWNER_EMAIL = "ok1879553@gmail.com"
+SENDER_EMAIL = "ok1879553@gmail.com"
+SENDER_PASSWORD = "web2810"
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 
-# --- SECRET ADMIN KEY (Aplya data surakshit thevnyasathi) ---
-ADMIN_SECRET_KEY = "omkar2812010"   # <-- Ha tumcha secret password ahe
+# --- SECRET ADMIN KEY ---
+ADMIN_SECRET_KEY = "omkar2812010"
 
 # --- DATABASE SETUP ---
 def init_db():
@@ -57,7 +57,6 @@ init_db()
 def generate_clients_csv():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
-    
     query = """
         SELECT 
             u.id AS user_id, 
@@ -77,47 +76,14 @@ def generate_clients_csv():
 
     output = io.StringIO()
     writer = csv.writer(output)
-    
-    # CSV Header
     writer.writerow(["User ID", "User Email", "Plan", "Registration Date", "Monitored Domain", "Last Score", "Last Status"])
-    
     for row in rows:
         writer.writerow(row)
-        
     return output.getvalue()
 
-# --- DAILY AUTO-EMAIL BACKUP ENGINE ---
-def send_daily_backup_email():
-    try:
-        csv_data = generate_clients_csv()
-        
-        msg = MIMEMultipart()
-        msg['From'] = SENDER_EMAIL
-        msg['To'] = OWNER_EMAIL
-        msg['Subject'] = f"📊 Daily Client Backup Report - {datetime.now().strftime('%Y-%m-%d')}"
-        
-        body = "Namaskar Owner,\n\nTumchya SaaS app cha aajcha daily client database backup attachment madhe dila ahe.\n\nDhanyawad!"
-        msg.attach(MIMEText(body, 'plain'))
-        
-        part = MIMEBase('application', 'octet-stream')
-        part.set_payload(csv_data.encode('utf-8'))
-        encoders.encode_base64(part)
-        part.add_header('Content-Disposition', f'attachment; filename="clients_backup_{datetime.now().strftime("%Y%m%d")}.csv"')
-        msg.attach(part)
-        
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-        server.starttls()
-        server.login(SENDER_EMAIL, SENDER_PASSWORD)
-        server.send_message(msg)
-        server.quit()
-        print("[BACKUP ENGINE] Daily backup email sent successfully!")
-    except Exception as e:
-        print(f"[BACKUP ENGINE ERROR] {e}")
-
-# --- SECURE ADMIN CSV DOWNLOAD ENDPOINT ---
+# --- SECURE ADMIN ENDPOINTS ---
 @app.get("/admin/export-csv")
 def export_clients_csv(key: str = ""):
-    # Key check: Jar secret key barobar nasel tar error dakhva
     if key != ADMIN_SECRET_KEY:
         return Response(content="Unauthorized Access! Invalid Admin Secret Key.", status_code=403)
     
@@ -128,13 +94,6 @@ def export_clients_csv(key: str = ""):
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
-
-@app.post("/admin/trigger-email-backup")
-def trigger_email_backup(key: str, background_tasks: BackgroundTasks):
-    if key != ADMIN_SECRET_KEY:
-        return {"error": "Unauthorized Access!"}
-    background_tasks.add_task(send_daily_backup_email)
-    return {"message": "Backup process triggered! Check your owner email."}
 
 # --- FRONTEND INTERFACE ---
 @app.get("/", response_class=HTMLResponse)
@@ -147,27 +106,43 @@ def home():
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Website Security Checker</title>
         <style>
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-            .card { background: #1e293b; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 100%; max-width: 500px; text-align: center; }
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+            .navbar { width: 100%; max-width: 600px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+            .logo { font-size: 20px; font-weight: bold; color: #38bdf8; }
+            .auth-btns button { background: #334155; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; margin-left: 8px; font-weight: bold; }
+            .auth-btns button.primary { background: #0284c7; }
+            .card { background: #1e293b; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 100%; max-width: 550px; text-align: center; box-sizing: border-box; }
             h2 { color: #38bdf8; margin-bottom: 8px; }
             p { color: #94a3b8; font-size: 14px; margin-bottom: 20px; }
             input { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: #fff; box-sizing: border-box; margin-bottom: 12px; font-size: 15px; }
-            button { width: 100%; padding: 12px; border-radius: 6px; border: none; background: #0284c7; color: white; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.2s; }
-            button:hover { background: #0369a1; }
+            button.scan-btn { width: 100%; padding: 12px; border-radius: 6px; border: none; background: #0284c7; color: white; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.2s; }
+            button.scan-btn:hover { background: #0369a1; }
             #results { margin-top: 25px; text-align: left; display: none; }
             .score-box { background: #0f172a; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 15px; border: 1px solid #334155; }
             .score-num { font-size: 32px; font-weight: bold; color: #4ade80; }
             .item { background: #334155; padding: 10px 15px; border-radius: 6px; margin-bottom: 8px; font-size: 14px; display: flex; justify-content: space-between; }
             .pass { color: #4ade80; font-weight: bold; }
             .fail { color: #f87171; font-weight: bold; }
+            .pro-banner { background: linear-gradient(135deg, #1e1b4b, #312e81); border: 1px solid #6366f1; padding: 20px; border-radius: 8px; margin-top: 20px; text-align: center; }
+            .pro-banner h3 { margin: 0 0 8px 0; color: #a5b4fc; }
+            .pro-banner p { color: #c7d2fe; font-size: 13px; margin-bottom: 15px; }
+            .pro-banner button { background: #6366f1; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; }
         </style>
     </head>
     <body>
+        <div class="navbar">
+            <div class="logo">🛡️ SecurityChecker</div>
+            <div class="auth-btns">
+                <button onclick="alert('Login feature coming soon!')">Login</button>
+                <button class="primary" onclick="alert('Register feature coming soon!')">Register</button>
+            </div>
+        </div>
+
         <div class="card">
-            <h2>🛡️ Website Security Checker</h2>
+            <h2>Website Security Checker</h2>
             <p>Enter any domain to check basic security posture</p>
             <input type="text" id="domainInput" placeholder="e.g. google.com" />
-            <button id="scanBtn" onclick="checkSecurity()">Check Security</button>
+            <button class="scan-btn" id="scanBtn" onclick="checkSecurity()">Check Security</button>
 
             <div id="results">
                 <div class="score-box">
@@ -175,6 +150,12 @@ def home():
                     <div class="score-num" id="score">0/100</div>
                 </div>
                 <div id="details"></div>
+
+                <div class="pro-banner">
+                    <h3>🚀 Upgrade to PRO Plan ($5/mo)</h3>
+                    <p>Get 24/7 Automated Monitoring, Vulnerability Alerts & Full PDF Reports.</p>
+                    <button onclick="window.open('https://buy.stripe.com/test_link', '_blank')">Upgrade Now</button>
+                </div>
             </div>
         </div>
 
