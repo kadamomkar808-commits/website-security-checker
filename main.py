@@ -1,16 +1,44 @@
-from fastapi import FastAPI, Response
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Form, Request, Depends, HTTPException, status
+from fastapi.responses import HTMLResponse, RedirectResponse
 import ssl
 import socket
 from datetime import datetime
 import urllib.request
 import dns.resolver
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-import io
+import sqlite3
 
 app = FastAPI()
 
+# --- DATABASE SETUP ---
+def init_db():
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    # Users table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            plan TEXT DEFAULT 'Free'
+        )
+    """)
+    # Monitored Websites table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS monitored_websites (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            domain TEXT NOT NULL,
+            last_score INTEGER,
+            last_status TEXT,
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+init_db()
+
+# --- HTML FRONTEND WITH LOGIN & DASHBOARD ---
 @app.get("/", response_class=HTMLResponse)
 def home():
     return """
@@ -19,118 +47,144 @@ def home():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Website Security Checker - SaaS</title>
+        <title>Website Security Checker - Full SaaS</title>
         <style>
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+            body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
             .card { background: #1e293b; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 100%; max-width: 500px; text-align: center; }
             h2 { color: #38bdf8; margin-bottom: 8px; }
             p { color: #94a3b8; font-size: 14px; margin-bottom: 20px; }
             input { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: #fff; box-sizing: border-box; margin-bottom: 12px; font-size: 15px; }
-            button { width: 100%; padding: 12px; border-radius: 6px; border: none; background: #0284c7; color: white; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.2s; margin-bottom: 8px; }
+            button { width: 100%; padding: 12px; border-radius: 6px; border: none; background: #0284c7; color: white; font-weight: bold; font-size: 16px; cursor: pointer; margin-top: 5px; }
             button:hover { background: #0369a1; }
-            .pdf-btn { background: #16a34a; }
-            .pdf-btn:hover { background: #15803d; }
-            #results { margin-top: 25px; text-align: left; display: none; }
+            .nav-tabs { display: flex; justify-content: space-around; margin-bottom: 20px; border-bottom: 1px solid #334155; padding-bottom: 10px; }
+            .tab { color: #94a3b8; cursor: pointer; font-weight: bold; }
+            .tab.active { color: #38bdf8; border-bottom: 2px solid #38bdf8; }
+            .section { display: none; }
+            .section.active { display: block; }
             .score-box { background: #0f172a; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 15px; border: 1px solid #334155; }
             .score-num { font-size: 32px; font-weight: bold; color: #4ade80; }
             .item { background: #334155; padding: 10px 15px; border-radius: 6px; margin-bottom: 8px; font-size: 14px; display: flex; justify-content: space-between; }
             .pass { color: #4ade80; font-weight: bold; }
             .fail { color: #f87171; font-weight: bold; }
-            .section-title { font-size: 12px; color: #94a3b8; text-transform: uppercase; margin: 15px 0 5px 0; font-weight: bold; }
-            
-            /* Pro Banner */
-            .pro-banner { margin-top: 25px; padding: 15px; border: 1px dashed #eab308; background: rgba(234, 179, 8, 0.1); border-radius: 8px; text-align: center; }
-            .pro-title { color: #eab308; font-weight: bold; margin-bottom: 5px; }
-            .pro-btn { background: #eab308; color: #000; font-size: 14px; padding: 8px 15px; margin-top: 10px; border-radius: 4px; font-weight: bold; border: none; cursor: pointer; width: 100%; }
+            .pro-badge { background: #eab308; color: #000; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
         </style>
     </head>
     <body>
         <div class="card">
-            <h2>🛡️ Website Security Checker</h2>
-            <p>Free Basic Security Scanner</p>
-            <input type="text" id="domainInput" placeholder="e.g. google.com" />
-            <button id="scanBtn" onclick="checkSecurity()">Check Security</button>
+            <h2>🛡️ Security Checker SaaS</h2>
+            
+            <div class="nav-tabs">
+                <span class="tab active" onclick="showTab('scannerTab', this)">Free Scanner</span>
+                <span class="tab" onclick="showTab('loginTab', this)">Login / Register</span>
+            </div>
 
-            <div id="results">
-                <div class="score-box">
-                    <div>Overall Security Score</div>
-                    <div class="score-num" id="score">0/100</div>
-                </div>
-                
-                <div class="section-title">SSL & Headers</div>
-                <div id="basic-details"></div>
-                
-                <div class="section-title">Email Security (DNS)</div>
-                <div id="dns-details"></div>
+            <!-- TAB 1: FREE SCANNER -->
+            <div id="scannerTab" class="section active">
+                <p>Instant Security Check for Any Website</p>
+                <input type="text" id="domainInput" placeholder="e.g. google.com" />
+                <button id="scanBtn" onclick="checkSecurity()">Check Security</button>
 
-                <button class="pdf-btn" onclick="downloadPDF()">📄 Download PDF Report</button>
-                
-                <div class="pro-banner">
-                    <div class="pro-title">🚀 Upgrade to PRO Plan ($5/mo)</div>
-                    <div style="font-size: 12px; color: #cbd5e1;">Get 24/7 Automated Monitoring & Vulnerability Email Alerts.</div>
-                    <a href="https://buy.stripe.com/test_link" target="_blank" style="text-decoration: none;">
-                        <button class="pro-btn">Upgrade Now ($5/mo)</button>
-                    </a>
+                <div id="results" style="display:none; margin-top:20px; text-align:left;">
+                    <div class="score-box">
+                        <div>Overall Security Score</div>
+                        <div class="score-num" id="score">0/100</div>
+                    </div>
+                    <div id="basic-details"></div>
                 </div>
+            </div>
+
+            <!-- TAB 2: LOGIN / REGISTER -->
+            <div id="loginTab" class="section">
+                <h3>User Account</h3>
+                <p>Register or Login to access 24/7 Monitoring Engine</p>
+                <input type="email" id="userEmail" placeholder="Your Email" />
+                <input type="password" id="userPassword" placeholder="Your Password" />
+                <button onclick="registerUser()">Register Account</button>
+                <button style="background:#334155;" onclick="loginUser()">Login</button>
+                <div id="authMsg" style="margin-top:10px; font-size:14px; color:#38bdf8;"></div>
             </div>
         </div>
 
         <script>
-            let currentDomain = '';
+            function showTab(tabId, el) {
+                document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.getElementById(tabId).classList.add('active');
+                el.classList.add('active');
+            }
 
             async function checkSecurity() {
-                const domainInput = document.getElementById('domainInput');
-                const domain = domainInput.value.trim();
-                if(!domain) { alert('Please enter a domain'); return; }
-                
-                currentDomain = domain;
+                const domain = document.getElementById('domainInput').value.trim();
+                if(!domain) return alert('Enter domain');
                 const btn = document.getElementById('scanBtn');
                 btn.innerText = 'Scanning...';
                 
                 try {
                     const res = await fetch('/scan?domain=' + encodeURIComponent(domain));
                     const data = await res.json();
-                    
                     document.getElementById('results').style.display = 'block';
                     document.getElementById('score').innerText = data.overall_score + '/100';
                     
-                    // Basic Details
-                    let basicHtml = '<div class="item"><span>SSL Status</span> <span class="' + (data.ssl_check.status === 'PASS' ? 'pass':'fail') + '">' + data.ssl_check.status + ' (' + data.ssl_check.days_remaining + ' days)</span></div>';
-                    for (const [header, val] of Object.entries(data.headers_check)) {
-                        basicHtml += '<div class="item"><span>' + header + '</span> <span class="' + (val === 'Present' ? 'pass':'fail') + '">' + val + '</span></div>';
+                    let html = '<div class="item"><span>SSL Status</span> <span class="' + (data.ssl_check.status === 'PASS' ? 'pass':'fail') + '">' + data.ssl_check.status + '</span></div>';
+                    for (const [h, v] of Object.entries(data.headers_check)) {
+                        html += '<div class="item"><span>' + h + '</span> <span class="' + (v === 'Present' ? 'pass':'fail') + '">' + v + '</span></div>';
                     }
-                    document.getElementById('basic-details').innerHTML = basicHtml;
-
-                    // DNS Details
-                    let dnsHtml = '<div class="item"><span>SPF Record</span> <span class="' + (data.dns_check.spf === 'Present' ? 'pass':'fail') + '">' + data.dns_check.spf + '</span></div>';
-                    dnsHtml += '<div class="item"><span>DMARC Record</span> <span class="' + (data.dns_check.dmarc === 'Present' ? 'pass':'fail') + '">' + data.dns_check.dmarc + '</span></div>';
-                    document.getElementById('dns-details').innerHTML = dnsHtml;
-
+                    document.getElementById('basic-details').innerHTML = html;
                 } catch(e) {
-                    alert('Error checking domain: ' + e);
+                    alert('Error scanning');
                 } finally {
                     btn.innerText = 'Check Security';
                 }
             }
 
-            function downloadPDF() {
-                if(currentDomain) {
-                    window.open('/download-pdf?domain=' + encodeURIComponent(currentDomain), '_blank');
-                }
+            async function registerUser() {
+                const email = document.getElementById('userEmail').value;
+                const password = document.getElementById('userPassword').value;
+                const res = await fetch('/register?email=' + encodeURIComponent(email) + '&password=' + encodeURIComponent(password), {method: 'POST'});
+                const data = await res.json();
+                document.getElementById('authMsg').innerText = data.message;
+            }
+
+            async function loginUser() {
+                const email = document.getElementById('userEmail').value;
+                const password = document.getElementById('userPassword').value;
+                const res = await fetch('/login?email=' + encodeURIComponent(email) + '&password=' + encodeURIComponent(password), {method: 'POST'});
+                const data = await res.json();
+                document.getElementById('authMsg').innerText = data.message;
             }
         </script>
     </body>
     </html>
     """
 
+# --- BACKEND API ENDPOINTS ---
+@app.post("/register")
+def register(email: str, password: str):
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    try:
+        cursor.execute("INSERT INTO users (email, password) VALUES (?, ?)", (email, password))
+        conn.commit()
+        return {"message": "Account created successfully! You can now login."}
+    except Exception:
+        return {"message": "Email already registered!"}
+    finally:
+        conn.close()
+
+@app.post("/login")
+def login(email: str, password: str):
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, plan FROM users WHERE email=? AND password=?", (email, password))
+    user = cursor.fetchone()
+    conn.close()
+    if user:
+        return {"message": f"Welcome back! Logged in as [{user[1]} Plan] User."}
+    return {"message": "Invalid Email or Password!"}
+
 @app.get("/scan")
 def scan_website(domain: str):
-    return get_security_data(domain)
-
-def get_security_data(domain: str):
     score = 0
-    
-    # 1. SSL Check
     ssl_status = "FAIL"
     ssl_days = 0
     context = ssl.create_default_context()
@@ -142,11 +196,10 @@ def get_security_data(domain: str):
                 expire_date = datetime.strptime(expire_date_str, "%b %d %H:%M:%S %Y %Z")
                 ssl_days = (expire_date - datetime.utcnow()).days
                 ssl_status = "PASS"
-                score += 40
+                score += 50
     except Exception:
         pass
 
-    # 2. Headers Check
     headers_result = {}
     target_url = f"https://{domain}"
     important_headers = ["Strict-Transport-Security", "X-Frame-Options", "X-Content-Type-Options"]
@@ -157,89 +210,16 @@ def get_security_data(domain: str):
         for header in important_headers:
             if header in headers:
                 headers_result[header] = "Present"
-                score += 10
+                score += 16.6
             else:
                 headers_result[header] = "Missing"
     except Exception:
         for header in important_headers:
             headers_result[header] = "Missing"
 
-    # 3. DNS (SPF & DMARC) Check
-    dns_result = {"spf": "Missing", "dmarc": "Missing"}
-    try:
-        answers = dns.resolver.resolve(domain, 'TXT')
-        for rdata in answers:
-            txt_record = rdata.to_text().strip('"')
-            if txt_record.startswith("v=spf1"):
-                dns_result["spf"] = "Present"
-                score += 15
-    except Exception:
-        pass
-
-    try:
-        dmarc_answers = dns.resolver.resolve(f"_dmarc.{domain}", 'TXT')
-        for rdata in dmarc_answers:
-            txt_record = rdata.to_text().strip('"')
-            if txt_record.startswith("v=DMARC1"):
-                dns_result["dmarc"] = "Present"
-                score += 15
-    except Exception:
-        pass
-
     return {
         "domain": domain,
         "overall_score": round(score),
         "ssl_check": {"status": ssl_status, "days_remaining": ssl_days},
-        "headers_check": headers_result,
-        "dns_check": dns_result
+        "headers_check": headers_result
     }
-
-@app.get("/download-pdf")
-def download_pdf(domain: str):
-    data = get_security_data(domain)
-    
-    buffer = io.BytesIO()
-    p = canvas.Canvas(buffer, pagesize=letter)
-    
-    # Title
-    p.setFont("Helvetica-Bold", 18)
-    p.drawString(100, 750, "Website Security Audit Report")
-    
-    p.setFont("Helvetica", 12)
-    p.drawString(100, 725, f"Domain: {domain}")
-    p.drawString(100, 705, f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    p.drawString(100, 685, f"Overall Security Score: {data['overall_score']} / 100")
-    
-    p.line(100, 670, 500, 670)
-    
-    # Details
-    y = 640
-    p.setFont("Helvetica-Bold", 14)
-    p.drawString(100, y, "1. SSL Certificate")
-    y -= 20
-    p.setFont("Helvetica", 12)
-    p.drawString(120, y, f"SSL Status: {data['ssl_check']['status']} ({data['ssl_check']['days_remaining']} days remaining)")
-    
-    y -= 40
-    p.setFont("Helvetica-Bold", 14)
-    p.drawString(100, y, "2. Security Headers")
-    y -= 20
-    p.setFont("Helvetica", 12)
-    for header, status in data['headers_check'].items():
-        p.drawString(120, y, f"{header}: {status}")
-        y -= 20
-        
-    y -= 20
-    p.setFont("Helvetica-Bold", 14)
-    p.drawString(100, y, "3. Email Security (DNS)")
-    y -= 20
-    p.setFont("Helvetica", 12)
-    p.drawString(120, y, f"SPF Record: {data['dns_check']['spf']}")
-    y -= 20
-    p.drawString(120, y, f"DMARC Record: {data['dns_check']['dmarc']}")
-    
-    p.showPage()
-    p.save()
-    
-    buffer.seek(0)
-    return Response(content=buffer.getvalue(), media_type="application/pdf", headers={"Content-Disposition": f"attachment; filename={domain}_security_report.pdf"})
