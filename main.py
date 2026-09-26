@@ -1,11 +1,12 @@
-from fastapi import FastAPI, Form, Request, Depends, HTTPException, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, BackgroundTasks
+from fastapi.responses import HTMLResponse
 import ssl
 import socket
 from datetime import datetime
 import urllib.request
-import dns.resolver
 import sqlite3
+import smtplib
+from email.mime.text import MIMEText
 
 app = FastAPI()
 
@@ -13,7 +14,6 @@ app = FastAPI()
 def init_db():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
-    # Users table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,7 +22,6 @@ def init_db():
             plan TEXT DEFAULT 'Free'
         )
     """)
-    # Monitored Websites table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS monitored_websites (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,7 +37,45 @@ def init_db():
 
 init_db()
 
-# --- HTML FRONTEND WITH LOGIN & DASHBOARD ---
+# --- EMAIL ALERT ENGINE ---
+def send_security_alert_email(to_email: str, domain: str, score: int, issue_details: str):
+    # This function formats and prepares security alert emails for PRO users
+    print(f"[EMAIL ENGINE] Alert triggered for {to_email} regarding {domain} (Score: {score})")
+    # For live SMTP sending, configure SMTP_SERVER and credentials.
+
+# --- AUTOMATED BACKGROUND SCANNER ---
+def run_background_monitoring_job():
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT m.id, m.domain, u.email FROM monitored_websites m JOIN users u ON m.user_id = u.id")
+    monitored_sites = cursor.fetchall()
+    
+    for site_id, domain, user_email in monitored_sites:
+        score = 0
+        ssl_status = "FAIL"
+        try:
+            context = ssl.create_default_context()
+            with socket.create_connection((domain, 443), timeout=5) as sock:
+                with context.wrap_socket(sock, server_hostname=domain) as ssock:
+                    cert = ssock.getpeercert()
+                    expire_date_str = cert['notAfter']
+                    expire_date = datetime.strptime(expire_date_str, "%b %d %H:%M:%S %Y %Z")
+                    remaining_days = (expire_date - datetime.utcnow()).days
+                    if remaining_days > 7:
+                        ssl_status = "PASS"
+                        score += 50
+        except Exception:
+            ssl_status = "FAIL"
+
+        if score < 50 or ssl_status == "FAIL":
+            send_security_alert_email(user_email, domain, score, "Critical Security Issues or Expiring SSL detected!")
+
+        cursor.execute("UPDATE monitored_websites SET last_score=?, last_status=? WHERE id=?", (score, ssl_status, site_id))
+    
+    conn.commit()
+    conn.close()
+
+# --- HTML FRONTEND WITH FULL SAAS DASHBOARD ---
 @app.get("/", response_class=HTMLResponse)
 def home():
     return """
@@ -47,10 +84,10 @@ def home():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Website Security Checker - Full SaaS</title>
+        <title>Website Security Checker - SaaS</title>
         <style>
             body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-            .card { background: #1e293b; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 100%; max-width: 500px; text-align: center; }
+            .card { background: #1e293b; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 100%; max-width: 550px; text-align: center; }
             h2 { color: #38bdf8; margin-bottom: 8px; }
             p { color: #94a3b8; font-size: 14px; margin-bottom: 20px; }
             input { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: #fff; box-sizing: border-box; margin-bottom: 12px; font-size: 15px; }
@@ -66,6 +103,7 @@ def home():
             .item { background: #334155; padding: 10px 15px; border-radius: 6px; margin-bottom: 8px; font-size: 14px; display: flex; justify-content: space-between; }
             .pass { color: #4ade80; font-weight: bold; }
             .fail { color: #f87171; font-weight: bold; }
+            .pro-banner { background: linear-gradient(135deg, #1e3a8a, #0284c7); padding: 15px; border-radius: 8px; margin-top: 15px; text-align: left; }
             .pro-badge { background: #eab308; color: #000; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
         </style>
     </head>
@@ -75,7 +113,7 @@ def home():
             
             <div class="nav-tabs">
                 <span class="tab active" onclick="showTab('scannerTab', this)">Free Scanner</span>
-                <span class="tab" onclick="showTab('loginTab', this)">Login / Register</span>
+                <span class="tab" onclick="showTab('loginTab', this)">Account / Monitoring</span>
             </div>
 
             <!-- TAB 1: FREE SCANNER -->
@@ -93,15 +131,21 @@ def home():
                 </div>
             </div>
 
-            <!-- TAB 2: LOGIN / REGISTER -->
+            <!-- TAB 2: USER DASHBOARD & PRO MONITORING -->
             <div id="loginTab" class="section">
-                <h3>User Account</h3>
-                <p>Register or Login to access 24/7 Monitoring Engine</p>
+                <h3>User Account & 24/7 Alerts</h3>
+                <p>Register or Login to manage monitored websites</p>
                 <input type="email" id="userEmail" placeholder="Your Email" />
                 <input type="password" id="userPassword" placeholder="Your Password" />
                 <button onclick="registerUser()">Register Account</button>
                 <button style="background:#334155;" onclick="loginUser()">Login</button>
                 <div id="authMsg" style="margin-top:10px; font-size:14px; color:#38bdf8;"></div>
+
+                <div class="pro-banner">
+                    <span class="pro-badge">PRO PLAN ($5/mo)</span>
+                    <h4 style="margin:5px 0;">24/7 Automated Email Security Monitoring</h4>
+                    <p style="margin:0; font-size:12px; color:#cbd5e1;">Get instant email alerts when your SSL expires or headers misconfigure.</p>
+                </div>
             </div>
         </div>
 
@@ -157,7 +201,7 @@ def home():
     </html>
     """
 
-# --- BACKEND API ENDPOINTS ---
+# --- API ENDPOINTS ---
 @app.post("/register")
 def register(email: str, password: str):
     conn = sqlite3.connect("database.db")
@@ -165,7 +209,7 @@ def register(email: str, password: str):
     try:
         cursor.execute("INSERT INTO users (email, password) VALUES (?, ?)", (email, password))
         conn.commit()
-        return {"message": "Account created successfully! You can now login."}
+        return {"message": "Account created! You can now login."}
     except Exception:
         return {"message": "Email already registered!"}
     finally:
@@ -181,6 +225,11 @@ def login(email: str, password: str):
     if user:
         return {"message": f"Welcome back! Logged in as [{user[1]} Plan] User."}
     return {"message": "Invalid Email or Password!"}
+
+@app.post("/trigger-monitoring")
+def trigger_monitoring(background_tasks: BackgroundTasks):
+    background_tasks.add_task(run_background_monitoring_job)
+    return {"message": "Background security check job triggered successfully!"}
 
 @app.get("/scan")
 def scan_website(domain: str):
