@@ -1,12 +1,10 @@
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse
 import ssl
 import socket
 from datetime import datetime
 import urllib.request
-import io
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
+import dns.resolver
 
 app = FastAPI()
 
@@ -18,34 +16,28 @@ def home():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Website Security Checker - SaaS</title>
+        <title>Website Security Checker</title>
         <style>
             body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-            .card { background: #1e293b; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 100%; max-width: 500px; text-align: center; }
+            .card { background: #1e293b; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 100%; max-width: 550px; text-align: center; }
             h2 { color: #38bdf8; margin-bottom: 8px; }
             p { color: #94a3b8; font-size: 14px; margin-bottom: 20px; }
             input { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: #fff; box-sizing: border-box; margin-bottom: 12px; font-size: 15px; }
-            button { width: 100%; padding: 12px; border-radius: 6px; border: none; background: #0284c7; color: white; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.2s; margin-bottom: 8px; }
+            button { width: 100%; padding: 12px; border-radius: 6px; border: none; background: #0284c7; color: white; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.2s; }
             button:hover { background: #0369a1; }
-            .pdf-btn { background: #10b981; }
-            .pdf-btn:hover { background: #059669; }
             #results { margin-top: 25px; text-align: left; display: none; }
             .score-box { background: #0f172a; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 15px; border: 1px solid #334155; }
             .score-num { font-size: 32px; font-weight: bold; color: #4ade80; }
+            .section-title { font-weight: bold; color: #38bdf8; margin: 15px 0 5px 0; font-size: 15px; }
             .item { background: #334155; padding: 10px 15px; border-radius: 6px; margin-bottom: 8px; font-size: 14px; display: flex; justify-content: space-between; }
             .pass { color: #4ade80; font-weight: bold; }
             .fail { color: #f87171; font-weight: bold; }
-            
-            /* Pro Banner */
-            .pro-banner { margin-top: 25px; padding: 15px; border: 1px dashed #eab308; background: rgba(234, 179, 8, 0.1); border-radius: 8px; text-align: center; }
-            .pro-title { color: #eab308; font-weight: bold; margin-bottom: 5px; }
-            .pro-btn { background: #eab308; color: #000; font-size: 14px; padding: 8px 15px; margin-top: 10px; border-radius: 4px; font-weight: bold; }
         </style>
     </head>
     <body>
         <div class="card">
             <h2>🛡️ Website Security Checker</h2>
-            <p>Free Basic Security Scanner</p>
+            <p>Enter any domain to check SSL, Security Headers & DNS Security</p>
             <input type="text" id="domainInput" placeholder="e.g. google.com" />
             <button id="scanBtn" onclick="checkSecurity()">Check Security</button>
 
@@ -55,14 +47,6 @@ def home():
                     <div class="score-num" id="score">0/100</div>
                 </div>
                 <div id="details"></div>
-                
-                <button class="pdf-btn" onclick="downloadPDF()">📄 Download PDF Report</button>
-                
-                <div class="pro-banner">
-                    <div class="pro-title">🚀 Upgrade to PRO Plan ($5/mo)</div>
-                    <div style="font-size: 12px; color: #cbd5e1;">Get 24/7 Automated Monitoring & Vulnerability Email Alerts.</div>
-                    <button class="pro-btn" onclick="alert('Subscription Payment Gateway coming soon!')">Upgrade Now</button>
-                </div>
             </div>
         </div>
 
@@ -82,25 +66,23 @@ def home():
                     document.getElementById('results').style.display = 'block';
                     document.getElementById('score').innerText = data.overall_score + '/100';
                     
-                    let detailsHtml = '';
+                    let detailsHtml = '<div class="section-title">SSL Certificate</div>';
                     detailsHtml += '<div class="item"><span>SSL Status</span> <span class="' + (data.ssl_check.status === 'PASS' ? 'pass':'fail') + '">' + data.ssl_check.status + ' (' + data.ssl_check.days_remaining + ' days)</span></div>';
                     
+                    detailsHtml += '<div class="section-title">Security Headers</div>';
                     for (const [header, val] of Object.entries(data.headers_check)) {
                         detailsHtml += '<div class="item"><span>' + header + '</span> <span class="' + (val === 'Present' ? 'pass':'fail') + '">' + val + '</span></div>';
                     }
+
+                    detailsHtml += '<div class="section-title">DNS Email Security</div>';
+                    detailsHtml += '<div class="item"><span>SPF Record</span> <span class="' + (data.dns_check.spf === 'Found' ? 'pass':'fail') + '">' + data.dns_check.spf + '</span></div>';
+                    detailsHtml += '<div class="item"><span>DMARC Record</span> <span class="' + (data.dns_check.dmarc === 'Found' ? 'pass':'fail') + '">' + data.dns_check.dmarc + '</span></div>';
                     
                     document.getElementById('details').innerHTML = detailsHtml;
                 } catch(e) {
                     alert('Error checking domain: ' + e);
                 } finally {
                     btn.innerText = 'Check Security';
-                }
-            }
-
-            function downloadPDF() {
-                const domain = document.getElementById('domainInput').value.trim();
-                if(domain) {
-                    window.open('/download-pdf?domain=' + encodeURIComponent(domain), '_blank');
                 }
             }
         </script>
@@ -110,14 +92,13 @@ def home():
 
 @app.get("/scan")
 def scan_website(domain: str):
-    return run_security_scan(domain)
-
-def run_security_scan(domain: str):
     score = 0
     ssl_status = "FAIL"
     ssl_days = 0
     headers_result = {}
+    dns_result = {"spf": "Missing", "dmarc": "Missing"}
 
+    # 1. SSL Check (Max 30 points)
     context = ssl.create_default_context()
     try:
         with socket.create_connection((domain, 443), timeout=5) as sock:
@@ -127,17 +108,18 @@ def run_security_scan(domain: str):
                 expire_date = datetime.strptime(expire_date_str, "%b %d %H:%M:%S %Y %Z")
                 ssl_days = (expire_date - datetime.utcnow()).days
                 ssl_status = "PASS"
-                score += 50
+                score += 30
     except Exception:
         ssl_status = "FAIL"
 
+    # 2. HTTP Headers Check (Max 40 points)
     target_url = f"https://{domain}"
     important_headers = [
         "Strict-Transport-Security",
         "X-Frame-Options",
         "X-Content-Type-Options"
     ]
-    points_per_header = 50 / len(important_headers)
+    points_per_header = 40 / len(important_headers)
 
     try:
         req = urllib.request.Request(target_url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -154,6 +136,30 @@ def run_security_scan(domain: str):
         for header in important_headers:
             headers_result[header] = "Missing"
 
+    # 3. DNS Security Check - SPF & DMARC (Max 30 points - 15 each)
+    try:
+        answers = dns.resolver.resolve(domain, 'TXT')
+        for rdata in answers:
+            txt = str(rdata)
+            if "v=spf1" in txt:
+                dns_result["spf"] = "Found"
+                score += 15
+                break
+    except Exception:
+        pass
+
+    try:
+        dmarc_domain = f"_dmarc.{domain}"
+        answers = dns.resolver.resolve(dmarc_domain, 'TXT')
+        for rdata in answers:
+            txt = str(rdata)
+            if "v=DMARC1" in txt:
+                dns_result["dmarc"] = "Found"
+                score += 15
+                break
+    except Exception:
+        pass
+
     return {
         "domain": domain,
         "overall_score": round(score),
@@ -161,43 +167,6 @@ def run_security_scan(domain: str):
             "status": ssl_status,
             "days_remaining": ssl_days
         },
-        "headers_check": headers_result
+        "headers_check": headers_result,
+        "dns_check": dns_result
     }
-
-@app.get("/download-pdf")
-def download_pdf(domain: str):
-    data = run_security_scan(domain)
-    
-    buffer = io.BytesIO()
-    p = canvas.Canvas(buffer, pagesize=letter)
-    
-    p.setFont("Helvetica-Bold", 18)
-    p.drawString(50, 750, "Website Security Inspection Report")
-    
-    p.setFont("Helvetica", 12)
-    p.drawString(50, 720, f"Domain: {domain}")
-    p.drawString(50, 700, f"Overall Security Score: {data['overall_score']}/100")
-    
-    p.setFont("Helvetica-Bold", 14)
-    p.drawString(50, 660, "Audit Details:")
-    
-    p.setFont("Helvetica", 12)
-    p.drawString(70, 630, f"- SSL Status: {data['ssl_check']['status']} ({data['ssl_check']['days_remaining']} days left)")
-    
-    y = 600
-    for header, val in data['headers_check'].items():
-        p.drawString(70, y, f"- Header {header}: {val}")
-        y -= 25
-        
-    p.setFont("Helvetica-Oblique", 10)
-    p.drawString(50, y - 30, "Generated by Website Security Checker Engine.")
-    
-    p.showPage()
-    p.save()
-    
-    buffer.seek(0)
-    return StreamingResponse(
-        buffer, 
-        media_type="application/pdf", 
-        headers={"Content-Disposition": f"attachment; filename={domain}_security_report.pdf"}
-    )
