@@ -83,7 +83,7 @@ def export_clients_csv(key: str = ""):
 @app.get("/admin/view-data")
 def view_data(key: str = ""):
     if key != ADMIN_SECRET_KEY:
-        return {"error": "पाहणी नाकारली! पासवर्ड चुकीचा आहे."}
+        return {"error": "Unauthorized Access! Invalid Admin Password."}
     
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
@@ -102,8 +102,9 @@ def view_data(key: str = ""):
     }
 
 @app.get("/", response_class=HTMLResponse)
-def home():
-    return """
+def home(admin: bool = False):
+    admin_display = "block" if admin else "none"
+    return f"""
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -111,27 +112,27 @@ def home():
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Website Security Checker</title>
         <style>
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
-            .navbar { width: 100%; max-width: 650px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-            .logo { font-size: 20px; font-weight: bold; color: #38bdf8; }
-            .card { background: #1e293b; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 100%; max-width: 650px; box-sizing: border-box; }
-            h2 { color: #38bdf8; margin-bottom: 8px; text-align: center; }
-            p.sub { color: #94a3b8; font-size: 14px; margin-bottom: 20px; text-align: center; }
-            input { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: #fff; box-sizing: border-box; margin-bottom: 12px; font-size: 15px; }
-            button { width: 100%; padding: 12px; border-radius: 6px; border: none; background: #0284c7; color: white; font-weight: bold; font-size: 16px; cursor: pointer; }
-            #results { margin-top: 25px; text-align: left; display: none; }
-            .score-box { background: #0f172a; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 15px; border: 1px solid #334155; }
-            .score-num { font-size: 32px; font-weight: bold; color: #4ade80; }
-            .item { background: #334155; padding: 10px 15px; border-radius: 6px; margin-bottom: 8px; font-size: 14px; display: flex; justify-content: space-between; }
-            .pass { color: #4ade80; font-weight: bold; }
-            .fail { color: #f87171; font-weight: bold; }
+            body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }}
+            .navbar {{ width: 100%; max-width: 650px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }}
+            .logo {{ font-size: 20px; font-weight: bold; color: #38bdf8; }}
+            .card {{ background: #1e293b; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 100%; max-width: 650px; box-sizing: border-box; }}
+            h2 {{ color: #38bdf8; margin-bottom: 8px; text-align: center; }}
+            p.sub {{ color: #94a3b8; font-size: 14px; margin-bottom: 20px; text-align: center; }}
+            input {{ width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #334155; background: #0f172a; color: #fff; box-sizing: border-box; margin-bottom: 12px; font-size: 15px; }}
+            button {{ width: 100%; padding: 12px; border-radius: 6px; border: none; background: #0284c7; color: white; font-weight: bold; font-size: 16px; cursor: pointer; }}
+            #results {{ margin-top: 25px; text-align: left; display: none; }}
+            .score-box {{ background: #0f172a; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 15px; border: 1px solid #334155; }}
+            .score-num {{ font-size: 32px; font-weight: bold; color: #4ade80; }}
+            .item {{ background: #334155; padding: 10px 15px; border-radius: 6px; margin-bottom: 8px; font-size: 14px; display: flex; justify-content: space-between; }}
+            .pass {{ color: #4ade80; font-weight: bold; }}
+            .fail {{ color: #f87171; font-weight: bold; }}
             
-            /* OWNER SECTION STYLES */
-            .owner-card { background: #0f172a; border: 1px solid #e11d48; padding: 20px; border-radius: 8px; margin-top: 30px; }
-            .owner-title { color: #f43f5e; font-weight: bold; font-size: 16px; margin-bottom: 10px; text-align: center; }
-            table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }
-            th, td { border: 1px solid #334155; padding: 8px; text-align: left; word-break: break-all; }
-            th { background: #1e293b; color: #38bdf8; }
+            /* HIDDEN ADMIN SECTION */
+            .owner-card {{ background: #0f172a; border: 1px solid #e11d48; padding: 20px; border-radius: 8px; margin-top: 30px; display: {admin_display}; }}
+            .owner-title {{ color: #f43f5e; font-weight: bold; font-size: 16px; margin-bottom: 10px; text-align: center; }}
+            table {{ width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; }}
+            th, td {{ border: 1px solid #334155; padding: 8px; text-align: left; word-break: break-all; }}
+            th {{ background: #1e293b; color: #38bdf8; }}
         </style>
     </head>
     <body>
@@ -154,11 +155,11 @@ def home():
                 <div id="details"></div>
             </div>
 
-            <!-- PERMANENT OWNER LOGIN & DASHBOARD -->
+            <!-- OWNER SECTION (Only visible via secret URL) -->
             <div class="owner-card">
                 <div class="owner-title">👑 Owner Admin Login</div>
                 <div id="loginForm">
-                    <input type="password" id="ownerPassInput" placeholder="Enter Owner Password (omkar2812010)" />
+                    <input type="password" id="ownerPassInput" placeholder="Enter Owner Password" />
                     <button onclick="loginOwner()" style="background: #e11d48;">Login to Access Client Data</button>
                 </div>
 
@@ -178,15 +179,17 @@ def home():
         <script>
             let currentOwnerKey = "";
 
-            async function checkSecurity() {
+            async function checkSecurity() {{
                 const domainInput = document.getElementById('domainInput');
-                const domain = domainInput.value.trim();
-                if(!domain) { alert('Please enter a domain'); return; }
+                let domain = domainInput.value.trim();
+                if(!domain) {{ alert('Please enter a domain'); return; }}
+                
+                domain = domain.replace(/^https?:\\\/\\\//, '').replace(/\\\/.*$/, '');
                 
                 const btn = document.getElementById('scanBtn');
                 btn.innerText = 'Scanning...';
                 
-                try {
+                try {{
                     const res = await fetch('/scan?domain=' + encodeURIComponent(domain));
                     const data = await res.json();
                     
@@ -196,64 +199,62 @@ def home():
                     let detailsHtml = '';
                     detailsHtml += '<div class="item"><span>SSL Status</span> <span class="' + (data.ssl_check.status === 'PASS' ? 'pass':'fail') + '">' + data.ssl_check.status + ' (' + data.ssl_check.days_remaining + ' days)</span></div>';
                     
-                    for (const [header, val] of Object.entries(data.headers_check)) {
+                    for (const [header, val] of Object.entries(data.headers_check)) {{
                         detailsHtml += '<div class="item"><span>' + header + '</span> <span class="' + (val === 'Present' ? 'pass':'fail') + '">' + val + '</span></div>';
-                    }
+                    }}
                     
                     document.getElementById('details').innerHTML = detailsHtml;
-                } catch(e) {
+                }} catch(e) {{
                     alert('Error checking domain: ' + e);
-                } finally {
+                }} finally {{
                     btn.innerText = 'Check Security';
-                }
-            }
+                }}
+            }}
 
-            async function loginOwner() {
+            async function loginOwner() {{
                 const password = document.getElementById('ownerPassInput').value.trim();
-                if(!password) { alert('पासवर्ड टाका!'); return; }
+                if(!password) {{ alert('Please enter password'); return; }}
 
                 const res = await fetch('/admin/view-data?key=' + encodeURIComponent(password));
                 const data = await res.json();
 
-                if(data.error) {
+                if(data.error) {{
                     alert(data.error);
                     return;
-                }
+                }}
 
                 currentOwnerKey = password;
                 document.getElementById('loginForm').style.display = 'none';
                 document.getElementById('ownerDashboard').style.display = 'block';
 
-                // Users Table
-                if(data.users.length === 0) {
+                if(data.users.length === 0) {{
                     document.getElementById('usersTable').innerHTML = "<p style='color:#94a3b8; font-size:12px;'>No users registered yet.</p>";
-                } else {
+                }} else {{
                     let uHtml = "<table><tr><th>ID</th><th>Email</th><th>Plan</th><th>Date</th></tr>";
-                    data.users.forEach(u => {
-                        uHtml += <tr><td>${u[0]}</td><td>${u[1]}</td><td>${u[2]}</td><td>${u[3]}</td></tr>;
-                    });
+                    data.users.forEach(u => {{
+                        uHtml += <tr><td>${{u[0]}}</td><td>${{u[1]}}</td><td>${{u[2]}}</td><td>${{u[3]}}</td></tr>;
+                    }});
                     uHtml += "</table>";
                     document.getElementById('usersTable').innerHTML = uHtml;
-                }
+                }}
 
-                // Scans Table
-                if(data.scans_history.length === 0) {
+                if(data.scans_history.length === 0) {{
                     document.getElementById('scansTable').innerHTML = "<p style='color:#94a3b8; font-size:12px;'>No scans recorded yet.</p>";
-                } else {
+                }} else {{
                     let sHtml = "<table><tr><th>ID</th><th>User ID</th><th>Domain</th><th>Score</th><th>Status</th></tr>";
-                    data.scans_history.forEach(s => {
-                        sHtml += <tr><td>${s[0]}</td><td>${s[1]}</td><td>${s[2]}</td><td>${s[3]}</td><td>${s[4]}</td></tr>;
-                    });
+                    data.scans_history.forEach(s => {{
+                        sHtml += <tr><td>${{s[0]}}</td><td>${{s[1]}}</td><td>${{s[2]}}</td><td>${{s[3]}}</td><td>${{s[4]}}</td></tr>;
+                    }});
                     sHtml += "</table>";
                     document.getElementById('scansTable').innerHTML = sHtml;
-                }
-            }
+                }}
+            }}
 
-            function downloadCSV() {
-                if(currentOwnerKey) {
+            function downloadCSV() {{
+                if(currentOwnerKey) {{
                     window.open('/admin/export-csv?key=' + encodeURIComponent(currentOwnerKey), '_blank');
-                }
-            }
+                }}
+            }}
         </script>
     </body>
     </html>
@@ -266,10 +267,12 @@ def scan_website(domain: str):
     ssl_days = 0
     headers_result = {}
 
+    clean_domain = domain.replace("https://", "").replace("http://", "").split("/")[0]
+
     context = ssl.create_default_context()
     try:
-        with socket.create_connection((domain, 443), timeout=5) as sock:
-            with context.wrap_socket(sock, server_hostname=domain) as ssock:
+        with socket.create_connection((clean_domain, 443), timeout=5) as sock:
+            with context.wrap_socket(sock, server_hostname=clean_domain) as ssock:
                 cert = ssock.getpeercert()
                 expire_date_str = cert['notAfter']
                 expire_date = datetime.strptime(expire_date_str, "%b %d %H:%M:%S %Y %Z")
@@ -279,7 +282,7 @@ def scan_website(domain: str):
     except Exception:
         ssl_status = "FAIL"
 
-    target_url = f"https://{domain}"
+    target_url = f"https://{clean_domain}"
     important_headers = [
         "Strict-Transport-Security",
         "X-Frame-Options",
@@ -303,7 +306,7 @@ def scan_website(domain: str):
             headers_result[header] = "Missing"
 
     return {
-        "domain": domain,
+        "domain": clean_domain,
         "overall_score": round(score),
         "ssl_check": {
             "status": ssl_status,
